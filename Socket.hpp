@@ -73,7 +73,7 @@ bool 	InitSockets() {
 		wsa_startup_result = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	}
 	return !wsa_startup_result;
-#elif //_WIN32
+#else //_WIN32
 	return true;
 #endif
 }
