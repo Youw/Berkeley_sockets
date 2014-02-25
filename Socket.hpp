@@ -116,7 +116,7 @@ public:
 		return ::listen(m_socket, backlog);
 	}
 
-	Socket accept(sockaddr *addr, int *addr_len) {
+	Socket accept(sockaddr *addr, socklen_t *addr_len) {
 		return std::move(Socket(::accept(m_socket, addr, addr_len)));
 	}
 
@@ -164,7 +164,7 @@ public:
 		return ::recv(m_socket, buf, len, flags);
 	}
 
-	int getsockname(sockaddr *addr, int *addr_len) {
+	int getsockname(sockaddr *addr, socklen_t *addr_len) {
 		return ::getsockname(m_socket, addr, addr_len);
 	}
 
