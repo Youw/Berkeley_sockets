@@ -36,7 +36,7 @@ namespace sockets {
 			ConnectedClient() : client_ID(++ID_inc) {}
 
 			ConnectedClient(ConnectedClient&& right) : 
-				cl_socket(), cl_thread(move(right.cl_thread)), client_ID(move(right.client_ID)){
+				cl_socket(move(right.cl_socket)), cl_thread(move(right.cl_thread)), client_ID(move(right.client_ID)){
 				right.client_ID = 0;
 			}
 
