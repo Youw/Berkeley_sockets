@@ -5,8 +5,8 @@
 *	You need c++11 compiler or greater to use this source
 */
 
-#ifndef BERKELEY_SOCKET_H
-#define BERKELEY_SOCKET_H
+#ifndef BERKELEY_SOCKET_HPP
+#define BERKELEY_SOCKET_HPP
 
 #include <string>
 #include <vector>
@@ -21,7 +21,6 @@
 
 #ifdef _MSC_VER 
 #pragma comment (lib, "Ws2_32.lib")
-//#pragma comment (lib, "Mswsock.lib")
 #endif //_MSC_VER
 
 #elif defined(__linux__) || (defined(__APPLE__) && defined(__MACH__)) //_WIN32 // || _WIN64
@@ -50,145 +49,172 @@
 
 #endif //_WIN32 // || _WIN64
 
-namespace noncopyable {
-	
+namespace sockets {
+
 	class Noncopyable {
 	public:
 		Noncopyable() { };
 		Noncopyable(const Noncopyable&) = delete;
 		Noncopyable& operator=(const Noncopyable&) = delete;
+	protected:
+		~Noncopyable() {}
 	};
 
-};
+	class Nonmovable {
+	public:
+		Nonmovable() { };
+		Nonmovable(Noncopyable&&) = delete;
+		Nonmovable& operator=(Noncopyable&&) = delete;
+	protected:
+		~Nonmovable() {}
+	};
+
 
 #ifdef _WIN32
-static WSADATA wsaData;
-static int wsa_startup_result = -1;
+	static WSADATA wsaData;
+	static int wsa_startup_result = -1;
 #endif //_WIN32
 
-//need to be called on Windows
-bool 	InitSockets() {
+	//need to be called on Windows
+	inline bool InitSockets() {
 #ifdef _WIN32
-	if (wsa_startup_result != 0) {
-		wsa_startup_result = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	}
-	return !wsa_startup_result;
+		if (wsa_startup_result != 0) {
+			wsa_startup_result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+		}
+		return !wsa_startup_result;
 #else //_WIN32
-	return true;
+		return true;
 #endif
-}
-class Socket : public noncopyable::Noncopyable /*cannot be copied*/ {
-
-protected:
-	SOCKET m_socket;
-
-public:
-
-	Socket(SOCKET sock = INVALID_SOCKET) {
-		m_socket = sock;
 	}
 
-	Socket(int af, int type, int protocol) {
-		init(af, type, protocol);
+	//need to be called on Windows
+	inline bool ReleaseSockets() {
+#ifdef _WIN32
+		int result = WSACleanup();
+		wsa_startup_result = -1;
+		return !result;
+#else //_WIN32
+		return true;
+#endif
 	}
 
-	Socket(Socket&& sock) {
-		m_socket = sock.m_socket;
-		sock.m_socket = INVALID_SOCKET;
-	}
+	class Socket : public Noncopyable /*cannot be copied*/ {
 
-	Socket& operator=(Socket&& sock) {
-		m_socket = sock.m_socket;
-		sock.m_socket = INVALID_SOCKET;
-		return *this;
-	}
+	protected:
+		SOCKET m_socket;
 
-	bool init(int af, int type, int protocol) {
-		m_socket = socket(af, type, protocol);
-		return isInvalid();
-	}
+	public:
 
-	int bind(const sockaddr *addr, socklen_t addr_len) {
-		return ::bind(m_socket, addr, addr_len);
-	}
+		Socket(SOCKET sock = INVALID_SOCKET) {
+			m_socket = sock;
+		}
 
-	int listen(int backlog = SOMAXCONN) {
-		return ::listen(m_socket, backlog);
-	}
+		Socket(int af, int type, int protocol) {
+			init(af, type, protocol);
+		}
 
-	Socket accept(sockaddr *addr, socklen_t *addr_len) {
-		return std::move(Socket(::accept(m_socket, addr, addr_len)));
-	}
+		Socket(Socket&& sock) {
+			m_socket = sock.m_socket;
+			sock.m_socket = INVALID_SOCKET;
+		}
 
-	bool connect(sockaddr *addr, int addr_len) {
-		return ::connect(m_socket, addr, addr_len)==0;
-	}
+		Socket& operator=(Socket&& sock) {
+			m_socket = sock.m_socket;
+			sock.m_socket = INVALID_SOCKET;
+			return *this;
+		}
 
-	int sendStr(const std::string& str, int flags = 0) {
-		return send(str.c_str(), (int)str.size(), flags);
-	}
+		bool init(int af, int type, int protocol) {
+			m_socket = socket(af, type, protocol);
+			return isInvalid();
+		}
 
-	std::string recvStr(int recv_len, int flags = 0) {
-		std::string buf(recv_len, 0);
-		int resived = recv(&buf[0], recv_len, flags);
-		if (resived>0)
-			buf.resize(resived);
-		else {
-			buf.clear();
+		int bind(const sockaddr *addr, socklen_t addr_len) {
+			return ::bind(m_socket, addr, addr_len);
+		}
+
+		int listen(int backlog = SOMAXCONN) {
+			return ::listen(m_socket, backlog);
+		}
+
+		Socket accept(sockaddr *addr, socklen_t *addr_len) {
+			return ::accept(m_socket, addr, addr_len);
+		}
+
+		bool connect(sockaddr *addr, socklen_t addr_len) {
+			return ::connect(m_socket, addr, addr_len) == 0;
+		}
+
+		int sendStr(const std::string& str, int flags = 0) {
+			return send(str.c_str(), int(str.size()), flags);
+		}
+
+		std::string recvStr(unsigned recv_len, int flags = 0) {
+			std::string buf(recv_len, 0);
+			int resived = recv(&buf[0], int(recv_len), flags);
+			if (resived > 0)
+				buf.resize(resived);
+			else {
+				buf.clear();
+			}
+			return std::move(buf);
+		}
+
+		int sendData(const std::vector<char>& data, int flags = 0) {
+			return send(data.data(), int(data.size()), flags);
+		}
+
+		std::vector<char> recvData(unsigned recv_len, int flags = 0) {
+			std::vector<char> buf(recv_len);
+			int resived = recv(&buf[0], int(recv_len), flags);
+			if (resived > 0)
+				buf.resize(resived);
+			else {
+				buf.clear();
+			}
+			return std::move(buf);
+		}
+
+		int send(const char *buf, unsigned len, int flags) {
+			int result = ::send(m_socket, buf, int(len), flags);
+			if (result <= 0) closesocket();
+			return result;
+		}
+
+		int recv(char *buf, unsigned len, int flags) {
+			int result = ::recv(m_socket, buf, int(len), flags);
+			if (result <= 0) closesocket();
+			return result;
+		}
+
+		int getsockname(sockaddr *addr, socklen_t *addr_len) {
+			return ::getsockname(m_socket, addr, addr_len);
+		}
+
+		int shutdown(int how = SD_BOTH) {
+			return ::shutdown(m_socket, how);
+		}
+
+		int closesocket() {
+			shutdown();
+			int result = ::closesocket(m_socket);
+			m_socket = INVALID_SOCKET;
+			return result;
+		}
+
+		~Socket() {
 			closesocket();
 		}
-		return std::move(buf);
-	}
 
-	int sendData(const std::vector<char>& data, int flags = 0) {
-		return send(data.data(), (int)data.size(), flags);
-	}
-
-	std::vector<char> recvData(int recv_len, int flags = 0) {
-		std::vector<char> buf(recv_len);
-		int resived = recv(&buf[0], recv_len, flags);
-		if (resived>0)
-			buf.resize(resived);
-		else {
-			buf.clear();
-			closesocket();
+		bool isInvalid() const {
+			return m_socket == INVALID_SOCKET;
 		}
-		return std::move(buf);
-	}
 
-	int send(const char *buf, int len, int flags) {
-		return ::send(m_socket, buf, len, flags);
-	}
+		//should be comfortable, right?
+		operator SOCKET () const { return m_socket; }
 
-	int recv(char *buf, int len, int flags) {
-		return ::recv(m_socket, buf, len, flags);
-	}
+	};
 
-	int getsockname(sockaddr *addr, socklen_t *addr_len) {
-		return ::getsockname(m_socket, addr, addr_len);
-	}
+};//namespace sockets
 
-	int shutdown(int how = SD_BOTH) {
-		return ::shutdown(m_socket, how);
-	}
-
-	int closesocket() {
-		shutdown();
-		int result = ::closesocket(m_socket);
-		m_socket = INVALID_SOCKET;
- 		return result;
-	}
-
-	~Socket() {
-		closesocket();
-	}
-
-	bool isInvalid() const {
-		return m_socket == INVALID_SOCKET;
-	}
-
-	//should be comfortable, right?
-	operator SOCKET () const { return m_socket; }
-};
-
-#endif //BERKELEY_SOCKET_H
+#endif //BERKELEY_SOCKET_HPP
