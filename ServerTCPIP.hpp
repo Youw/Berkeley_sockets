@@ -68,7 +68,7 @@ namespace sockets {
 		ClientShutDownFunc cl_shut_func;
 
 		int static clientListener(SocketServerTCPIP* parent);
-		int static clientProcessor(SocketServerTCPIP* parent, ClientRecvLoopFunc& clientProcessor, ConnectedClient* client);
+		int static clientProcessor(SocketServerTCPIP* parent, ConnectedClient* client);
 	
 		void AddClient(Socket& client);
 		bool RemoveClient(ClientID_t cl_id);

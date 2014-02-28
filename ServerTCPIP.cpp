@@ -27,17 +27,17 @@ namespace sockets {
 		return 0;
 	}
 
-	int  SocketServerTCPIP::clientProcessor(SocketServerTCPIP* parent, ClientRecvLoopFunc& clientProcessor, ConnectedClient* client) {
-		while (!client->cl_socket.isInvalid()) {
+	int  SocketServerTCPIP::clientProcessor(SocketServerTCPIP* parent, ConnectedClient* client) {
+		while (true) {
 			char tmp;
 			if (0 == client->cl_socket.recv(&tmp, 1, MSG_PEEK)) {
 				if (parent->cl_shut_func(client->cl_socket))
-					client->cl_socket.detach();
+					client->cl_socket.closesocket();
 				return 0;
 			}
 			if (!client->cl_socket.isInvalid()) {
-				if (!clientProcessor(client->cl_socket)) {
-					client->cl_socket.detach();
+				if (!parent->cl_loop_func(client->cl_socket)) {
+					client->cl_socket.closesocket();
 					return 0;
 				}
 			}
@@ -58,7 +58,7 @@ namespace sockets {
 				clients.push_back(move(c_cl));
 			}
 			ConnectedClient& c_cl = clients.back();
-			c_cl.cl_thread = thread(clientProcessor, this, cl_loop_func, &c_cl);
+			c_cl.cl_thread = thread(clientProcessor, this, &c_cl);
 		}
 	}
 
@@ -85,15 +85,20 @@ namespace sockets {
 		if (isRunning()) return false;
 		struct addrinfo *result = NULL;
 		int af_fmly;
+		int af_flags = AI_PASSIVE;
 		switch (serv_type) {
 		case SockType::TCPIPv4:
 			af_fmly = AF_INET;
 			break;
+		case SockType::TCPIPv4v6:
+			af_flags |= AI_ALL | AI_V4MAPPED;
 		case SockType::TCPIPv6:
 			af_fmly = AF_INET6;
 			break;
+		default:
+			return false;
 		}
-		struct addrinfo hints{ AI_PASSIVE | AI_ALL | AI_V4MAPPED, af_fmly, SOCK_STREAM, IPPROTO_TCP };
+		addrinfo hints{ af_flags, af_fmly, SOCK_STREAM, IPPROTO_TCP };
 		int iResult;
 		if (bind_addr.empty())
 			iResult = getaddrinfo(nullptr, std::to_string(port).c_str(), &hints, &result);
@@ -106,6 +111,13 @@ namespace sockets {
 		iResult = listen_socket.socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 		if (iResult != 0) {
 			return false;
+		}
+		if ((serv_type == SockType::TCPIPv4v6) || (serv_type == SockType::TCPIPv6)) {
+			int32_t on = serv_type == SockType::TCPIPv6;
+			iResult = listen_socket.setsockopt(IPPROTO_IPV6, IPV6_V6ONLY, (char*)&on, sizeof(on));
+			if (iResult != 0) {
+				return false;
+			}
 		}
 		iResult = listen_socket.bind(result->ai_addr, (int)result->ai_addrlen);
 		if (iResult != 0) {

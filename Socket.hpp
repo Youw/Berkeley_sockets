@@ -99,7 +99,7 @@ namespace sockets {
 #endif
 	}
 
-	enum class SockType { TCPIPv4 = AF_INET, TCPIPv6 = AF_INET6 };
+	enum class SockType {TCPIPv4v6, TCPIPv4 = AF_INET, TCPIPv6 = AF_INET6 };
 
 	class Socket : public Noncopyable /*cannot be copied*/ {
 
@@ -138,6 +138,14 @@ namespace sockets {
 
 		int listen(int backlog = SOMAXCONN) {
 			return ::listen(m_socket, backlog);
+		}
+
+		int setsockopt(int level, int optname, const char *optval, int optlen) {
+			return ::setsockopt(m_socket, level, optname, optval, optlen);
+		}
+
+		int getsockopt(int level, int optname, char *optval, int *optlen) {
+			return ::getsockopt(m_socket, level, optname, optval, optlen);
 		}
 
 		Socket accept(sockaddr *addr, socklen_t *addr_len) {
@@ -184,8 +192,8 @@ namespace sockets {
 			return result;
 		}
 
-		int recv(char *buf, unsigned len, int flags) {
-			int result = ::recv(m_socket, buf, int(len), flags);
+		int recv(char *buf, unsigned buf_len, int flags) {
+			int result = ::recv(m_socket, buf, int(buf_len), flags);
 			if (result < 0) closesocket();
 			return result;
 		}
