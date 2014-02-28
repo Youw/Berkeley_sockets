@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include <cstdint>
 
 #ifdef _WIN32 // || _WIN64
 
@@ -98,6 +99,8 @@ namespace sockets {
 #endif
 	}
 
+	enum class SockType { TCPIPv4 = AF_INET, TCPIPv6 = AF_INET6 };
+
 	class Socket : public Noncopyable /*cannot be copied*/ {
 
 	protected:
@@ -110,7 +113,7 @@ namespace sockets {
 		}
 
 		Socket(int af, int type, int protocol) {
-			init(af, type, protocol);
+			socket(af, type, protocol);
 		}
 
 		Socket(Socket&& sock) {
@@ -124,8 +127,8 @@ namespace sockets {
 			return *this;
 		}
 
-		bool init(int af, int type, int protocol) {
-			m_socket = socket(af, type, protocol);
+		bool socket(int af, int type, int protocol) {
+			m_socket = ::socket(af, type, protocol);
 			return isInvalid();
 		}
 
@@ -177,18 +180,78 @@ namespace sockets {
 
 		int send(const char *buf, unsigned len, int flags) {
 			int result = ::send(m_socket, buf, int(len), flags);
-			if (result <= 0) closesocket();
+			if (result < 0) closesocket();
 			return result;
 		}
 
 		int recv(char *buf, unsigned len, int flags) {
 			int result = ::recv(m_socket, buf, int(len), flags);
-			if (result <= 0) closesocket();
+			if (result < 0) closesocket();
 			return result;
 		}
 
-		int getsockname(sockaddr *addr, socklen_t *addr_len) {
+		int getsockname(sockaddr *addr, socklen_t *addr_len) const {
 			return ::getsockname(m_socket, addr, addr_len);
+		}
+
+		int getpeername(sockaddr *addr, socklen_t *addr_len) const {
+			return ::getpeername(m_socket, addr, addr_len);
+		}
+
+		unsigned short port() const {
+			//port part of sockaddr_in6 (IPv6) is same as in sockaddr_in (IPv4)
+			sockaddr_in6 addr;
+			socklen_t addr_size = sizeof addr;
+			if (getsockname((sockaddr*)(&addr), &addr_size) == 0) {
+				return ntohs(addr.sin6_port);
+			}
+			return 0;
+		}
+
+		unsigned short peerPort() const {
+			//port part of sockaddr_in6 (IPv6) is same as in sockaddr_in (IPv4)
+			sockaddr_in6 addr;
+			socklen_t addr_size = sizeof addr;
+			if (getpeername((sockaddr*)(&addr), &addr_size) == 0) {
+				return ntohs(addr.sin6_port);
+			}
+			return 0;
+		}
+
+		std::string ip() const {
+			SOCKADDR_STORAGE addr;
+			socklen_t addr_size = sizeof addr;
+			if (getsockname((sockaddr*)(&addr), &addr_size) == 0) {
+				if (addr.ss_family == AF_INET) {
+					char dst[INET_ADDRSTRLEN];
+					const char* ip_char = inet_ntop(addr.ss_family, addr.__ss_pad1 + sizeof(unsigned short), dst, INET_ADDRSTRLEN);
+					return ip_char ? ip_char : "";
+				}
+				if (addr.ss_family == AF_INET6) {
+					char dst[INET6_ADDRSTRLEN];
+					const char * ip_char = inet_ntop(addr.ss_family, addr.__ss_pad1 + sizeof(unsigned short)+sizeof(uint32_t), dst, INET6_ADDRSTRLEN);
+					return ip_char ? ip_char : "";
+				}
+			}
+			return "";
+		}
+
+		std::string peerIp() const {
+			SOCKADDR_STORAGE addr;
+			socklen_t addr_size = sizeof addr;
+			if (getpeername((sockaddr*)(&addr), &addr_size) == 0) {
+				if (addr.ss_family == AF_INET) {
+					char dst[INET_ADDRSTRLEN];
+					const char* ip_char = inet_ntop(addr.ss_family, addr.__ss_pad1 + sizeof(unsigned short), dst, INET_ADDRSTRLEN);
+					return ip_char ? ip_char : "";
+				}
+				if (addr.ss_family == AF_INET6) {
+					char dst[INET6_ADDRSTRLEN];
+					const char * ip_char = inet_ntop(addr.ss_family, addr.__ss_pad1 + sizeof(unsigned short)+sizeof(uint32_t), dst, INET6_ADDRSTRLEN);
+					return ip_char ? ip_char : "";
+				}
+			}
+			return "";
 		}
 
 		int shutdown(int how = SD_BOTH) {
@@ -202,8 +265,16 @@ namespace sockets {
 			return result;
 		}
 
+		SOCKET detach() {
+			SOCKET result = m_socket;
+			m_socket = INVALID_SOCKET;
+			return result;
+		}
+
 		~Socket() {
-			closesocket();
+			if (!isInvalid()) {
+				throw std::logic_error("Socket destroed before closed");
+			}
 		}
 
 		bool isInvalid() const {
