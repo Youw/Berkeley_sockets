@@ -11,7 +11,8 @@
 #include <string>
 #include <vector>
 #include <utility>
-#include <cstdint>
+#include <stdint.h>
+#include <stdexcept>
 
 #ifdef _WIN32 // || _WIN64
 
@@ -47,6 +48,26 @@
 #define SD_SEND 1
 //Shutdown both send and receive operations.
 #define SD_BOTH 2
+
+#include <arpa/inet.h>
+
+#ifndef _SS_MAXSIZE
+
+#define _SS_MAXSIZE		128
+#define _SS_ALIGNSIZE	(sizeof(int64_t))
+#define _SS_PAD1SIZE	(_SS_ALIGNSIZE - sizeof(u_char) * 2)
+#define _SS_PAD2SIZE	(_SS_MAXSIZE - sizeof(u_char) * 2 - \
+  				_SS_PAD1SIZE - _SS_ALIGNSIZE)
+
+typedef struct SOCKADDR_STORAGE {
+  short   ss_family;
+  char    __ss_pad1[_SS_PAD1SIZE];
+  int64_t __ss_align;
+  char    __ss_pad2[_SS_PAD2SIZE];
+} *PSOCKADDR_STORAGE;
+#else
+typedef sockaddr_storage SOCKADDR_STORAGE;
+#endif
 
 #endif //_WIN32 // || _WIN64
 
@@ -144,7 +165,7 @@ namespace sockets {
 			return ::setsockopt(m_socket, level, optname, optval, optlen);
 		}
 
-		int getsockopt(int level, int optname, char *optval, int *optlen) {
+		int getsockopt(int level, int optname, char *optval, socklen_t *optlen) {
 			return ::getsockopt(m_socket, level, optname, optval, optlen);
 		}
 

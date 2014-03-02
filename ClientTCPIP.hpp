@@ -7,7 +7,7 @@
 #ifndef CLIENT_TCP_IP_V4_HPP
 #define CLIENT_TCP_IP_V4_HPP
 
-#include <Socket\Socket.hpp>
+#include <Socket/Socket.hpp>
 
 #include <vector>
 #include <string>
@@ -56,8 +56,15 @@ namespace sockets {
 				}
 
 				if (bind_port) {
-					sockaddr_in bind_addr{ ptr->ai_family, htons(bind_port) };;
-					if (0!=bind((sockaddr*)&bind_addr, sizeof(bind_addr))) {
+					sockaddr_in bind_addr{};
+					bind_addr.sin_family = decltype(bind_addr.sin_family)(ptr->ai_family);
+					bind_addr.sin_port = htons(bind_port);
+					int iSetOption = 1;
+//					if (0 != setsockopt( SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption, sizeof(iSetOption))) {
+//						closesocket();
+//						continue;
+//					}
+					if (0 != bind((sockaddr*)&bind_addr, sizeof(bind_addr))) {
 						closesocket();
 						continue;
 					}

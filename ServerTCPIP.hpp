@@ -7,7 +7,7 @@
 #ifndef SERVER_TCP_IP_V4_HPP
 #define SERVER_TCP_IP_V4_HPP
 
-#include <Socket\Socket.hpp>
+#include <Socket/Socket.hpp>
 
 #include <functional>
 #include <list>
@@ -47,6 +47,7 @@ namespace sockets {
 				cl_thread = move(right.cl_thread);
 				client_ID = move(right.client_ID);
 				right.client_ID = 0;
+				return *this;
 			}
 
 			Socket cl_socket;
@@ -83,11 +84,11 @@ namespace sockets {
 
 		void stopServer();
 
-		void SocketServerTCPIP::sendToAll(const char* data, unsigned data_len, int flags = 0);
+		void sendToAll(const char* data, unsigned data_len, int flags = 0);
 
-		void SocketServerTCPIP::sendToAllStr(const string& str, int flags = 0);
+		void sendToAllStr(const string& str, int flags = 0);
 
-		void SocketServerTCPIP::sendToAllData(const vector<char>& data, int flags = 0);
+		void sendToAllData(const vector<char>& data, int flags = 0);
 
 		~SocketServerTCPIP();
 
